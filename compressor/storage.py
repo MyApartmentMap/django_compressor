@@ -1,8 +1,10 @@
 import gzip
+import urlparse
 from os import path
 from datetime import datetime
 
 from django.core.files.storage import FileSystemStorage, get_storage_class
+from django.utils.encoding import filepath_to_uri
 from django.utils.functional import LazyObject
 
 from compressor.conf import settings
@@ -16,11 +18,14 @@ class CompressorFileStorage(FileSystemStorage):
     ``COMPRESS_URL``.
 
     """
-    def __init__(self, location=None, base_url=None, *args, **kwargs):
+    def __init__(self, location=None, base_url=None, base_url_ssl=None, *args, **kwargs):
         if location is None:
             location = settings.COMPRESS_ROOT
         if base_url is None:
             base_url = settings.COMPRESS_URL
+        if base_url_ssl is None:
+            base_url_ssl = settings.COMPRESS_URL_SSL
+        self.base_url_ssl = base_url_ssl
         super(CompressorFileStorage, self).__init__(location, base_url,
                                                     *args, **kwargs)
 
@@ -40,6 +45,11 @@ class CompressorFileStorage(FileSystemStorage):
         if self.exists(name):
             self.delete(name)
         return name
+    
+    def url_ssl(self, name):
+        if self.base_url_ssl is None:
+            raise ValueError("This file is not accessible via a URL.")
+        return urlparse.urljoin(self.base_url_ssl, filepath_to_uri(name))
 
 
 class GzipCompressorFileStorage(CompressorFileStorage):

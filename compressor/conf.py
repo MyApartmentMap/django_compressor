@@ -21,6 +21,7 @@ class CompressorSettings(AppSettings):
     JS_COMPRESSOR = "compressor.js.JsCompressor"
 
     URL = None
+    URL_SSL = None
     ROOT = None
 
     CSS_FILTERS = ['compressor.filters.css_default.CssAbsoluteFilter']
@@ -81,6 +82,17 @@ class CompressorSettings(AppSettings):
                 value = global_settings.MEDIA_URL
         if not value.endswith("/"):
             raise ImproperlyConfigured("The URL settings (e.g. COMPRESS_URL) "
+                                       "must have a trailing slash.")
+        return value
+    
+    def configure_url_ssl(self, value):
+        # Uses Django 1.3's STATIC_URL_SSL by default or falls back to MEDIA_URL_SSL
+        if value is None:
+            value = getattr(global_settings, "STATIC_URL_SSL", None)
+            if not value:
+                value = global_settings.MEDIA_URL_SSL
+        if not value.endswith("/"):
+            raise ImproperlyConfigured("The URL settings (e.g. COMPRESS_URL_SSL) "
                                        "must have a trailing slash.")
         return value
 

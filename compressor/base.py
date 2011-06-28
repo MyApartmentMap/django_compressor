@@ -44,13 +44,18 @@ class Compressor(object):
     def get_basename(self, url):
         try:
             base_url = self.storage.base_url
+            base_url_ssl = self.storage.base_url_ssl
         except AttributeError:
             base_url = settings.COMPRESS_URL
-        if not url.startswith(base_url):
+            base_url_ssl = settings.COMPRESS_URL_SSL
+        if not url.startswith(base_url) and not url.startswith(base_url_ssl):
             raise UncompressableFileError(
                 "'%s' isn't accesible via COMPRESS_URL ('%s') and can't be"
                 " compressed" % (url, base_url))
-        basename = url.replace(base_url, "", 1)
+        if url.startswith(base_url):
+            basename = url.replace(base_url, "", 1)
+        else:
+            basename = url.replace(base_url_ssl, "", 1)
         # drop the querystring, which is used for non-compressed cache-busting.
         return basename.split("?", 1)[0]
 
@@ -156,7 +161,7 @@ class Compressor(object):
         return os.path.join(settings.COMPRESS_OUTPUT_DIR.strip(os.sep),
             self.output_prefix, "%s.%s" % (get_hexdigest(content, 12), self.type))
 
-    def output(self, mode='file', forced=False):
+    def output(self, mode='file', forced=False, is_secure=False):
         """
         The general output method, override in subclass if you need to do
         any custom modification. Calls other mode specific methods or simply
@@ -179,12 +184,12 @@ class Compressor(object):
         # Then check for the appropriate output method and call it
         output_func = getattr(self, "output_%s" % mode, None)
         if callable(output_func):
-            return output_func(mode, content, forced)
+            return output_func(mode, content, forced, is_secure)
         # Total failure, raise a general exception
         raise CompressorError(
             "Couldn't find output method for mode '%s'" % mode)
 
-    def output_file(self, mode, content, forced=False):
+    def output_file(self, mode, content, forced=False, is_secure=False):
         """
         The output method that saves the content to a file and renders
         the appropriate template with the file's URL.
@@ -192,7 +197,10 @@ class Compressor(object):
         new_filepath = self.filepath(content)
         if not self.storage.exists(new_filepath) or forced:
             self.storage.save(new_filepath, ContentFile(content))
-        url = self.storage.url(new_filepath)
+        if is_secure:
+            url = self.storage.url_ssl(new_filepath)
+        else:
+            url = self.storage.url(new_filepath)
         return self.render_output(mode, {"url": url})
 
     def output_inline(self, mode, content, forced=False):

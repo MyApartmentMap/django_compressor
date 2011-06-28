@@ -18,10 +18,11 @@ COMPRESSORS = {
 
 class CompressorNode(template.Node):
 
-    def __init__(self, nodelist, kind=None, mode=OUTPUT_FILE):
+    def __init__(self, nodelist, kind=None, mode=OUTPUT_FILE, is_secure=False):
         self.nodelist = nodelist
         self.kind = kind
         self.mode = mode
+        self.is_secure = template.Variable(is_secure)
         self.compressor_cls = get_class(
             COMPRESSORS.get(self.kind), exception=ImproperlyConfigured)
 
@@ -55,6 +56,8 @@ class CompressorNode(template.Node):
         return None, None
 
     def render(self, context, forced=False):
+        self.is_secure = self.is_secure.resolve(context)
+
         # 1. Check if in debug mode
         if self.debug_mode(context):
             return self.nodelist.render(context)
@@ -71,9 +74,9 @@ class CompressorNode(template.Node):
             return cache_content
 
         # 4. call compressor output method and handle exceptions
-        rendered_output = compressor.output(self.mode, forced=forced)
+        rendered_output = compressor.output(self.mode, forced=forced, is_secure=self.is_secure)
         try:
-            rendered_output = compressor.output(self.mode, forced=forced)
+            rendered_output = compressor.output(self.mode, forced=forced, is_secure=self.is_secure)
             if cache_key:
                 cache_set(cache_key, rendered_output)
             return rendered_output
@@ -129,9 +132,9 @@ def compress(parser, token):
 
     args = token.split_contents()
 
-    if not len(args) in (2, 3):
+    if len(args) != 4:
         raise template.TemplateSyntaxError(
-            "%r tag requires either one or two arguments." % args[0])
+            "%r tag requires either one to three arguments." % args[0])
 
     kind = args[1]
     if not kind in COMPRESSORS.keys():
@@ -146,4 +149,7 @@ def compress(parser, token):
                 (args[0], OUTPUT_FILE, OUTPUT_INLINE))
     else:
         mode = OUTPUT_FILE
-    return CompressorNode(nodelist, kind, mode)
+    
+    is_secure = args[3]
+    
+    return CompressorNode(nodelist, kind, mode, is_secure)
